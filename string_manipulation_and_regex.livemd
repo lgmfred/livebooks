@@ -1,0 +1,800 @@
+<!-- livebook:{"autosave_interval_s":30,"persist_outputs":true} -->
+
+# String Manipulation
+
+## Remember this?
+
+```elixir
+string = "dockyard"
+is_binary(string)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+true
+```
+
+* What exactly are binaries?
+* How are they related to strings?
+* How about the single-quoted look alike cousin (e.g. `'dockyard'`) ?
+
+## Unicorn. . . No Wait, Unicode. Yeah, Unicode Code Points
+
+Basically, all the characters known to mankind are organized in a repertoire of code charts and each is given a unique numerical index known as a **Code Point**.
+
+```elixir
+?I
+# ?E
+# ?x
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+73
+```
+
+### Hex - Helping you search for a code point
+
+<!-- livebook:{"break_markdown":true} -->
+
+Hexadecimal is simply a base 16 counting system (0..9 then A..F). We use the `\uXXXX` notation to represent unicode characters in Elixir.
+
+```elixir
+"\u0049" == "I"
+"\u0045" == "E"
+# "\u0078" == "x"
+
+0x0045 = 69 = ?E
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+69
+```
+
+### UTF-8 and Encodings
+
+<!-- livebook:{"break_markdown":true} -->
+
+A single byte can only store an integer up to 255. How the heck are we supposed to store 144,697 character codepoints?
+
+In Elixir, we use UTF-8 to encode codepoints as a series of 8-bit bytes (a variable width character encoding). It uses one to four bytes to store each code point.
+
+**Code point** ---> _What we store_
+
+**Encoding** ---> _How we store it_
+
+```elixir
+string = "téte"
+String.length(string)
+byte_size(string)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+5
+```
+
+[String.codepoints/1](https://hexdocs.pm/elixir/String.html#codepoints/1)
+
+```elixir
+String.codepoints("é")
+String.codepoints("é")
+"é" == "é"
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+false
+```
+
+### Graphemes - Chosing your function friends wisely
+
+<!-- livebook:{"break_markdown":true} -->
+
+UTF-8 also has graphemes, which may have multiple characters that are often perceived as one.
+
+[String.codepoints/1](https://hexdocs.pm/elixir/String.html#codepoints/1) vs [String.graphemes/1](https://hexdocs.pm/elixir/String.html#graphemes/1)
+
+```elixir
+String.codepoints("👩‍🚒")
+String.graphemes("👩‍🚒")
+String.length("👩‍🚒")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+1
+```
+
+To see the exact bytes that a string is stored in.
+
+```elixir
+academy = "dôckyard"
+academy <> <<0>>
+# # OR
+# IO.inspect(academy, binaries: :as_binaries)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+<<100, 195, 180, 99, 107, 121, 97, 114, 100, 0>>
+```
+
+## Bitstrings
+
+A bitstring is a contiguous sequence of bits in memory. It's just a another data type in Elixir (denoted with the `<<>>` syntax).
+
+By default, a byte (8 bits) is used to store each number in a bitstring, although one can manually specify the number of bits using a `::n` or `::size(n)` modifier to denote that the size is `n` bits.
+
+```elixir
+<<69>> == <<69::8>>
+<<7::4>>
+
+<<0::1, 1::1, 1::1, 1::1>> == <<7::4>>
+
+## 256 ---> 0b100000000
+<<0>> == <<256>>
+## 256 ---> 0b100000001
+<<1>> == <<257>>
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+true
+```
+
+## Binaries
+
+A binary is a bitstring where the number of bits is divisible by 8.
+
+```elixir
+is_bitstring(<<3::4>>)
+is_binary(<<3::4>>)
+is_bitstring(<<0, 256, 42>>)
+is_binary(<<0, 256, 42>>)
+is_binary(<<13::25>>)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+false
+```
+
+Pattern matching on binaries / bitstrings.
+
+```elixir
+<<6, 1, x>> = <<6, 1, 7>>
+x
+
+# <<6, 1, x>> = <<6, 1, 7, 5>>
+# x
+
+<<6, 1, x::binary>> = <<6, 1, 7, 5>>
+x
+
+<<x::16, 7, 5>> = <<6, 1, 7, 5>>
+x
+
+# <<head::binary-size(2), rest::binary>> = <<6, 1, 7, 5>>
+# head
+# rest
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+warning: variable x in code block has no effect as it is never returned (remove the variable or assign it to _ to avoid warnings)
+  /home/ayiko/code/learn/dockyard/string_manipulation_and_regex.livemd#cell:gxe72vo2duip7jwjx2cgrdehe6rfiekc:2
+
+warning: variable x in code block has no effect as it is never returned (remove the variable or assign it to _ to avoid warnings)
+  /home/ayiko/code/learn/dockyard/string_manipulation_and_regex.livemd#cell:gxe72vo2duip7jwjx2cgrdehe6rfiekc:8
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+1537
+```
+
+### Now back to strings
+
+<!-- livebook:{"break_markdown":true} -->
+
+**A string is a UTF-8 encoded binary**, where the code point for each character is encoded using 1 to 4 bytes. Therefore, every string is a binary, but not every binary is a valid string (Damn the UTF-8 standard encoding rules).
+
+```elixir
+is_binary("dockyard")
+is_binary(<<239, 191, 19>>)
+String.valid?(<<239, 191, 19>>)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+false
+```
+
+This is because a binary can contain any sequence of bytes, whereas a string must contain valid Unicode codepoints encoded as UTF-8. If a binary contains invalid UTF-8 sequences, it cannot be interpreted as a string.
+
+```elixir
+## Remember?
+"d" <> "ya"
+
+## Hey look!
+<<100>> <> <<121, 97>>
+
+## Under the hood (just to see)
+# <<100>> <> <<121, 97, 0>>
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"dya"
+```
+
+### String are binaries so lets pattern match
+
+```elixir
+<<head, rest::binary>> = "dockyard"
+
+head == ?d
+
+rest
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"ockyard"
+```
+
+```elixir
+## Remember that binary pattern matching works on bytes
+"ü" <> <<0>>
+
+# <<x, rest::binary>> = "über"
+
+# x 
+
+# rest
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+<<195, 188, 0>>
+```
+
+```elixir
+## With utf8 modifier
+# "ü" <> <<0>>
+
+<<x::utf8, rest::binary>> = "über"
+
+x == ?ü
+
+# rest
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+true
+```
+
+## Charlists
+
+Let's take some measurements and store them as lists.
+
+```elixir
+lengths = [100, 111, 99, 107, 121, 97, 114, 100]
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+'dockyard'
+```
+
+```elixir
+'dockyard'
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+'dockyard'
+```
+
+Not what you expected, isn't it? This is called a charlist. **A charlist is a list of integers where all the integers are valid code points.**
+
+```elixir
+## The're lists afterall so let's play
+# Enum.map('dockyard', fn each -> each + 1 end)
+# List.to_string('dock')
+# String.to_charlist("yard")
+IO.inspect([100, 111, 99, 107])
+IO.inspect([100, 111, 99, 107], charlists: :as_lists)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+'dock'
+[100, 111, 99, 107]
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+'dock'
+```
+
+```elixir
+# 'dock' <> 'yard'
+'dock' ++ 'yard'
+# "dock" ++ "yard"
+"dock" <> "yard"
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"dockyard"
+```
+
+## Hit it! Dj! Reading MP3 Metadata
+
+## !!! NOT working !!!
+
+The **ID3v1** tag has a simple structure—the last 128 bytes of the file contain
+a fixed-length tag.
+
+<!-- livebook:{"break_markdown":true} -->
+
+**Length**    **Contents**
+
+3   Header containing the characters TAG
+
+30  Title
+
+30  Artist
+
+30  Album
+
+4   Year
+
+30  Comment
+
+1   Genre
+
+In the ID3v1.1 format. The idea was to change the 30-byte comment field to the following:
+
+**Length**  **Contents**
+
+28    Comment
+
+1     0(a zero)
+
+1     Track number
+
+```elixir
+## Read last 128 bytes
+mp3_file = "../5 Maria PM.mp3"
+{:ok, file} = File.read(mp3_file)
+offset = byte_size(file) - 128
+
+<<_first::binary-size(offset), last128::binary-size(128)>> = file
+
+## ID3v1
+sizesize
+# <<"TAG", title::binary-size(30), artist::binary-size(30), album::binary-size(30),
+#   year::binary-size(4), comment::binary-size(30), genre::binary-size(1)>> = last128
+
+## ID3v1.1
+# <<"TAG", title::binary-size(30), artist::binary-size(30), album::binary-size(30),
+#   year::binary-size(4), comment::binary-size(28), 0::binary-size(1), track::binary-size(1),
+#   genre::binary-size(1)>> = last128
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+<<73, 68, 51, 4, 0, 0, 0, 4, 22, 111, 84, 80, 69, 49, 0, 0, 0, 12, 0, 0, 3, 70, 97, 108, 108, 121,
+  32, 73, 112, 117, 112, 97, 84, 73, 84, 50, 0, 0, 0, 9, 0, 0, 3, 77, 97, 114, 105, 97, 32, 80,
+  ...>>
+```
+
+```elixir
+defmodule ID3Tags do
+  def extract_tags(file) do
+    {:ok, binary} = File.read(file)
+
+    <<_header::binary-size(3), version::binary-size(2), _flags::binary-size(1), frames::binary>> =
+      binary
+
+    frame_size = byte_size(frames)
+    frame_data = <<frames::binary>> <> <<0::size(8)>>
+
+    parse_frames(frame_data, frame_size, version)
+  end
+
+  defp parse_frames(_frame_data, 0, _version), do: []
+
+  defp parse_frames(frame_data, frame_size, version) do
+    <<frame::binary-size(10), data::binary-size(_size), rest::binary>> = frame_data
+
+    case ID3Frames.parse_frame(frame, data, version) do
+      {:ok, tag, value} ->
+        [{tag, value} | parse_frames(rest, frame_size - (10 + data_size), version)]
+
+      :error ->
+        parse_frames(rest, frame_size - (10 + data_size), version)
+    end
+  end
+
+  # defmodule ID3Frames do
+  #   def parse_frame("TIT2", data, version), do: {:ok, :title, to_string(data)}
+  #   def parse_frame("TALB", data, version), do: {:ok, :album, to_string(data)}
+  #   def parse_frame("TPE1", data, version), do: {:ok, :artist, to_string(data)}
+  #   def parse_frame(_, _, _), do: :error
+end
+```
+
+## Regex - Regular Expressions
+
+Regex are a powerful tool for working with (match process) strings in Elixir. Elixir uses the PCRE specification.
+
+String patterns that represent a regular expression's meaning are first compiled and then used for matching all or part of a string.
+
+```elixir
+~r/bonjour/
+~r|bonjour|
+~r"bonjour"
+~r'bonjour'
+~r(bonjour)
+~r[bonjour]
+~r{bonjour}
+~r<bonjour>
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+~r/bonjour/
+```
+
+Using [Regex.scan/3](https://hexdocs.pm/elixir/Regex.html#scan/3) to find all matches.
+
+```elixir
+# Regex.scan(~r/ou(r)/, "bonjour")
+# Regex.scan(~r/jour/, "bonjour")
+# Regex.scan(~r/on/, "bonjour")
+# Regex.scan(~r/bonjour/, "bonjour")
+## OR
+# "ghhr" =~ ~r/bonjour/
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[["our", "r"]]
+```
+
+## Regex Module
+
+* `run/3` Runs the regular expression against the given string until the first match.
+* `scan/3` Scans the string for all matches.
+* `replace/4` Replaces all matches.
+* `split/3` Split the string on matches.
+* `match?/2` Return a boolean if the string contains the regular expression.
+
+```elixir
+Regex.run(~r/\d/, "aa1234")
+Regex.scan(~r/\d(\d)/, "aa1234")
+
+# Regex.replace(~r/chaps/, "The chaps must be crazy!", "gods")
+
+Regex.replace(~r/\d/, "12345", fn str ->
+  "#{String.to_integer(str) * 2}"
+end)
+
+# String.split("un*deux*trois", "*")
+# Regex.split(~r/\*/, "un*deux*trois")
+
+Regex.match?(~r/\s/, "no_white_spaces_here")
+Regex.match?(~r/\d/, "there_is_7_here")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+true
+```
+
+## Building Regular Expressions
+
+Just enough PCRE Regex special symbols to be dangerous. These can become very complex and ugly pretty fast.
+
+<!-- livebook:{"break_markdown":true} -->
+
+#### Character classes
+
+`.` any character except newline
+
+`\w \d \s`  word, digit, whitespace
+
+`[abc]` any of a, b, or c
+
+`[^abc]`    not a, b, or c
+
+`[a-g]` character between a and g
+
+```elixir
+Regex.scan(~r/7/, "1237")
+Regex.scan(~r/\d/, "xyz127")
+Regex.scan(~r/\w/, "wxyz127")
+Regex.scan(~r/./, "xyzp\n127")
+Regex.scan(~r/\s/, "7 x b m")
+Regex.scan(~r/\d\d\d\d-\d\d\d\d-\d\d\d\d/, "4987-8548-8888-1881 4012-2138-0865-1881")
+Regex.scan(~r/[247]/, "1234567")
+# Regex.scan(~r/[^247]/, "1234567")
+# Regex.scan(~r/[1-4]/, "1234567")
+# Regex.scan(~r/[v-x]/, "uvwxy4567")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[["2"], ["4"], ["7"]]
+```
+
+#### Anchors
+
+`^abc$` start / end of the string
+
+```elixir
+Regex.scan(~r/^abcd$/, "abcd")
+Regex.scan(~r/^abcd/, "abcde")
+Regex.scan(~r/^abcd$/, ".abcd")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[]
+```
+
+#### Escaped characters
+
+`\. \* \\`  escaped special characters
+
+`\t \n \r`  tab, linefeed, carriage return
+
+```elixir
+Regex.scan(~r/abc*d/, "abc*d")
+Regex.scan(~r/abc\*d/, "abc*d")
+Regex.scan(~r/a?bcd/, "bcd")
+# Regex.scan(~r/a\?bc\*d/, "a?bc*d")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[["bcd"]]
+```
+
+#### Quantifiers & Alternation
+
+`a* a+ a?`  0 or more, 1 or more, 0 or 1
+
+`a{5} a{2,}`    exactly five, two or more
+
+`a{1,3}`    between one & three
+
+`ab|cd` match ab or cd
+
+```elixir
+# Regex.scan(~r/1*/, "1121")
+# Regex.scan(~r/1+/, "11211")
+# Regex.scan(~r/ab?/, "a ab")
+# Regex.scan(~r/\d{2}-\d{3}-\d{4}/, "11-222-3333")
+# Regex.scan(~r/\d{3,4}/, "11-222-3333")
+Regex.scan(~r/\d{4}|\d{3}/, "11-222-3333")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[["222"], ["3333"]]
+```
+
+The [String](https://hexdocs.pm/elixir/String.html) module has the `replace/3`, `match?/2` and `split?/3` functions for working with regular expressions.
+
+```elixir
+"ABCDE"
+|> String.replace(~r/[A-Z]/, fn each -> "#{String.downcase(each)}" end)
+|> String.replace(~r/[a-d]/, fn each -> each <> "-" end)
+
+# String.match?("baar", ~r/foo/)
+# String.match?("foo", ~r/foo/)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"a-b-c-d-e"
+```
+
+## Capture Groups
+
+Treating multiple characters as a single unit.
+
+```elixir
+# Regex.run(~r/ab/, "ab")
+# Regex.run(~r/a(b)/, "ab")
+# Regex.run(~r/(a)(b)/, "ab")
+# Regex.run(~r/(a)(b)c/, "abc")
+# Regex.run(~r/(a)((b)(c))/, "abc")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+nil
+```
+
+How can we use capture groups?
+
+```elixir
+# Regex.run(~r/a(bc)/, "abc")
+
+# Regex.replace(~r/a(bc)/, "abcd", fn match, group1 ->
+#   IO.inspect(match, label: "full match")
+#   IO.inspect(group1, label: "capture group")
+#   "*" <> group1
+# end)
+
+# Regex.run(~r/(a)b(c)/, "abc")
+
+# Regex.replace(~r/(a)b(c)/, "abc", fn match, group1, group2 ->
+#   IO.inspect(match, label: "full match")
+#   IO.inspect(group1, label: "capture group 1")
+#   IO.inspect(group2, label: "capture group 2")
+#    group1 <> "*" <> group2
+# end)
+
+# Regex.run(~r/a(b(c)d)e/, "abcde")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+nil
+```
+
+```elixir
+card_nos = "4987 8548 8888 1881 4012 2138 0865 1881"
+
+# Regex.run(~r/\d{4}\s\d{4}\s\d{4}\s(\d{4})/, card_nos)
+
+# Regex.replace(~r/\d{4}\s\d{4}\s\d{4}(\s\d{4})/, card_nos, fn match, group ->
+#   IO.inspect(match, label: "match")
+#   IO.inspect(group, label: "group")
+#   "****" <> group
+# end)
+
+Regex.run(~r/(\d{4})\s\d{4}\s\d{4}\s(\d{4})/, card_nos)
+
+Regex.replace(~r/(\d{4})\s\d{4}\s\d{4}\s(\d{4})/, card_nos, fn match, group1, group2 ->
+  IO.inspect(match, label: "match")
+  IO.inspect(group1, label: "group1")
+  IO.inspect(group2, label: "group2")
+  group1 <> " **** **** " <> group2
+end)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+match: "4987 8548 8888 1881"
+group1: "4987"
+group2: "1881"
+match: "4012 2138 0865 1881"
+group1: "4012"
+group2: "1881"
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"4987 **** **** 1881 4012 **** **** 1881"
+```
+
+## Look around before crossing, will ya?
+
+### Lookahead
+
+<!-- livebook:{"break_markdown":true} -->
+
+We use positive lookahead `(?=)` to only match expressions followed by another and negative lookahead `(?!)` to only match on expressions not followed by another.
+
+```elixir
+Regex.scan(~r/3/, "36 35 37")
+Regex.scan(~r/3(?=7)/, "363537")
+Regex.scan(~r/3(?!7)/, "363537")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[["3"], ["3"]]
+```
+
+### Lookbehind
+
+<!-- livebook:{"break_markdown":true} -->
+
+Lookbehind `((?<=)` (positive) and `(?<!))` negative are similar to lookahead but they match expressions preceded by another.
+
+```elixir
+Regex.scan(~r/5/, "75 35 57")
+Regex.scan(~r/(?<=3)5/, "75 35 57")
+Regex.scan(~r/(?<!3)5/, "75 35 57")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[["5"], ["5"]]
+```
+
+## A junky-as-hell HTTP URL validator.
+
+```elixir
+regex = ~r/^https?:\/\/[a-zA-Z0-9]+(\.[a-zA-Z0-9]{2,})+([\/\?\#]|$)/
+
+# regex = ~r/
+# ^                 # Start of string anchor
+# https?            # http or https
+# :\/\/             # ://
+# [a-zA-Z0-9]+      # One or more alphanumeric characters
+# (\.[a-zA-Z0-9]{2,})+ # At least one dot-separated label for the domain name (at least 2 letters)
+# ([\/\?\#]|$)      # Either /, ?, or #, or the end of the string
+# /x
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+~r/^https?:\/\/[a-zA-Z0-9]+(\.[a-zA-Z0-9]{2,})+([\/\?\#]|$)/
+```
+
+```elixir
+# url = "https://www.google.com"
+# url = "http://example.com"
+# url = "https://foo.bar.baz/qux.html"
+# url = "ftp://www.google.com"
+# url = "https://www.google"
+# url = "https://.com"
+url = "https://example..com"
+Regex.match?(regex, url)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+false
+```
